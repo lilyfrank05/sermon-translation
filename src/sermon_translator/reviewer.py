@@ -147,12 +147,21 @@ class Reviewer:
 
                 issues = []
                 for issue_data in data.get("issues", []):
+                    original_text = issue_data.get("original_text", "")
+                    suggestion = issue_data.get("suggestion", "")
+                    # Skip false positives where suggestion is identical to original
+                    if original_text.strip() == suggestion.strip():
+                        continue
                     issues.append(ReviewIssue(
                         paragraph=issue_data.get("paragraph", 0),
-                        original_text=issue_data.get("original_text", ""),
+                        original_text=original_text,
                         issue_type=issue_data.get("issue_type", "unknown"),
-                        suggestion=issue_data.get("suggestion", ""),
+                        suggestion=suggestion,
                     ))
+
+                # If all issues were filtered out, treat as approved
+                if not issues:
+                    return ReviewResult(approved=True, issues=[], corrected_translation=None)
 
                 return ReviewResult(
                     approved=False,

@@ -14,7 +14,12 @@ from .translator import Translator
 
 @click.command()
 @click.argument("input_file", type=click.Path(exists=True, path_type=Path))
-@click.argument("output_file", type=click.Path(path_type=Path))
+@click.option(
+    "--output", "-o",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Output file path (default: <input>-Chinese Translation.docx)",
+)
 @click.option(
     "--bible-version",
     default=DEFAULT_BIBLE_VERSION,
@@ -37,7 +42,7 @@ from .translator import Translator
 )
 def main(
     input_file: Path,
-    output_file: Path,
+    output: Path | None,
     bible_version: str,
     skip_review: bool,
     api_key: str | None,
@@ -47,7 +52,6 @@ def main(
     Translate a sermon notes DOCX file from English to Mandarin Chinese.
 
     INPUT_FILE: Path to the input DOCX file (English)
-    OUTPUT_FILE: Path for the output DOCX file (Chinese)
     """
     # Validate API key
     effective_api_key = api_key or OPENROUTER_API_KEY
@@ -60,7 +64,14 @@ def main(
         click.echo(f"Error: Input file must be a .docx file, got: {input_file.suffix}", err=True)
         sys.exit(1)
 
+    # Generate output filename if not provided
+    if output is None:
+        output_file = input_file.parent / f"{input_file.stem}-ChineseTranslation.docx"
+    else:
+        output_file = output
+
     click.echo(f"Reading: {input_file}")
+    click.echo(f"Output will be: {output_file}")
 
     # Step 1: Read the DOCX file
     try:
