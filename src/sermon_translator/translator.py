@@ -5,12 +5,25 @@ from openai import OpenAI
 from .config import (
     DEFAULT_MODEL,
     MAX_PARAGRAPHS_PER_CHUNK,
+    MAX_TOKENS_PER_CHUNK,
     OPENROUTER_API_KEY,
     OPENROUTER_BASE_URL,
     TRANSLATION_SYSTEM_PROMPT,
     TRANSLATION_TEMPERATURE,
 )
 from .docx_handler import Paragraph
+
+
+def estimate_tokens(text: str) -> int:
+    """
+    Estimate token count for a text string.
+
+    Uses a rough heuristic: ~1.5 tokens per Chinese character, ~0.25 tokens per English character.
+    This is conservative to avoid hitting limits.
+    """
+    chinese_chars = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+    other_chars = len(text) - chinese_chars
+    return int(chinese_chars * 1.5 + other_chars * 0.25) + 10  # +10 for safety margin
 
 
 class Translator:
@@ -60,17 +73,27 @@ class Translator:
         """
         Split paragraphs into chunks for translation.
 
+        Uses both paragraph count and token limits to determine chunk boundaries.
         Returns list of chunks, where each chunk is a list of (index, paragraph) tuples.
         """
         chunks = []
         current_chunk = []
+        current_tokens = 0
 
         for i, para in enumerate(paragraphs):
-            current_chunk.append((i, para))
+            para_tokens = estimate_tokens(para.text)
 
-            if len(current_chunk) >= MAX_PARAGRAPHS_PER_CHUNK:
+            # Check if adding this paragraph would exceed limits
+            would_exceed_paragraphs = len(current_chunk) >= MAX_PARAGRAPHS_PER_CHUNK
+            would_exceed_tokens = (current_tokens + para_tokens) > MAX_TOKENS_PER_CHUNK and current_chunk
+
+            if would_exceed_paragraphs or would_exceed_tokens:
                 chunks.append(current_chunk)
                 current_chunk = []
+                current_tokens = 0
+
+            current_chunk.append((i, para))
+            current_tokens += para_tokens
 
         if current_chunk:
             chunks.append(current_chunk)
@@ -81,6 +104,7 @@ class Translator:
         self,
         chunk: list[tuple[int, Paragraph]],
         verse_table: str,
+        retry_count: int = 0,
     ) -> list[str]:
         """
         Translate a chunk of paragraphs.
@@ -88,6 +112,7 @@ class Translator:
         Args:
             chunk: List of (index, paragraph) tuples
             verse_table: Formatted Bible verse reference table
+            retry_count: Current retry attempt (for logging)
 
         Returns:
             List of translated text in order
@@ -122,7 +147,75 @@ class Translator:
         translated_text = response.choices[0].message.content or ""
 
         # Parse the response to extract translations for each paragraph
-        return self._parse_response(translated_text, chunk)
+        results = self._parse_response(translated_text, chunk)
+
+        # Check for untranslated paragraphs (empty results for non-empty inputs)
+        missing_indices = []
+        for i, (idx, para) in enumerate(chunk):
+            if para.text.strip() and not results[i]:
+                missing_indices.append(i)
+
+        # Retry missing paragraphs individually if any were missed
+        if missing_indices and retry_count < 2:
+            for i in missing_indices:
+                idx, para = chunk[i]
+                # Translate single paragraph
+                single_result = self._translate_single_paragraph(idx, para, verse_table)
+                if single_result:
+                    results[i] = single_result
+
+        return results
+
+    def _translate_single_paragraph(
+        self,
+        idx: int,
+        para: Paragraph,
+        verse_table: str,
+    ) -> str:
+        """
+        Translate a single paragraph (used for retry).
+
+        Args:
+            idx: Original paragraph index
+            para: Paragraph to translate
+            verse_table: Formatted Bible verse reference table
+
+        Returns:
+            Translated text
+        """
+        text = para.text.strip()
+        if not text:
+            return ""
+
+        marker = f"[P{idx + 1}]"
+        input_text = f"{marker} {text}"
+
+        system_prompt = TRANSLATION_SYSTEM_PROMPT.format(
+            verse_table=verse_table if verse_table else "[No Bible verse references]"
+        )
+
+        response = self.client.chat.completions.create(
+            model=self.model,
+            temperature=TRANSLATION_TEMPERATURE,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": input_text},
+            ],
+        )
+
+        translated_text = response.choices[0].message.content or ""
+
+        # Parse single paragraph response
+        import re
+        pattern = rf"\[P{idx + 1}\]\s*(.*?)$"
+        match = re.search(pattern, translated_text, re.DOTALL)
+
+        if match:
+            return match.group(1).strip()
+
+        # Fallback: return the whole response if no marker found
+        # (model might just output the translation directly)
+        return translated_text.strip()
 
     def _parse_response(
         self,
