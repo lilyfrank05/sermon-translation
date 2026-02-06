@@ -70,6 +70,12 @@ def main(
     else:
         output_file = output
 
+    # Remove all .docx files except the input file
+    for docx_file in input_file.parent.glob("*.docx"):
+        if docx_file.resolve() != input_file.resolve():
+            docx_file.unlink()
+            click.echo(f"Removed: {docx_file}")
+
     click.echo(f"Reading: {input_file}")
     click.echo(f"Output will be: {output_file}")
 
