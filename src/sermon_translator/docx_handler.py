@@ -108,6 +108,10 @@ def write_docx(
     rFonts.set(qn("w:eastAsia"), EAST_ASIAN_FONT)
 
     for i, (orig_para, translated_text) in enumerate(zip(paragraphs, translated_texts)):
+        # Skip empty paragraphs entirely (no empty lines in output)
+        if orig_para.is_empty() and not translated_text.strip():
+            continue
+
         para = doc.add_paragraph()
 
         if not orig_para.runs:
