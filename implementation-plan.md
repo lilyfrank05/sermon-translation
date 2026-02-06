@@ -88,9 +88,16 @@ Rules:
 ```
 
 **Chunking strategy:**
-- Group paragraphs into chunks of ~2000 tokens to stay within context limits
+- Group paragraphs into chunks using both token and paragraph limits
+- Default: max 5 paragraphs OR ~1500 tokens per chunk (whichever is reached first)
+- Token estimation uses heuristics: ~1.5 tokens per Chinese character, ~0.25 per English character
 - Preserve paragraph boundaries (never split mid-paragraph)
 - Include paragraph markers in prompt so translations align
+
+**Retry mechanism:**
+- After translating a chunk, check if any non-empty paragraphs got empty results
+- If translations are missing (e.g., due to output truncation), retry those paragraphs individually
+- Up to 2 retry attempts per missing paragraph
 
 **API call:**
 - Use `gpt-4o` model for high-quality translation
@@ -131,11 +138,12 @@ If the translation is good, respond with "APPROVED".
 uv run sermon-translate input.docx output.docx [--bible-version CCB] [--skip-review]
 ```
 - Validate input file exists
+- **Clean up existing .docx files** (removes all .docx files except the input file before processing)
 - Read DOCX → structured paragraphs
 - Detect and fetch Bible verses from BibleGateway
 - Translate in chunks via OpenAI (with verse table)
 - Auto-review translation and apply corrections
-- Write translated content to output DOCX
+- Write translated content to output DOCX (**empty paragraphs are filtered out**)
 - Report progress to user
 
 ### Step 7: Configuration (`config.py`)
@@ -158,8 +166,8 @@ All settings are loaded from `.env` file using python-dotenv:
 - `FONT_SIZE_PT` - Font size in points (default: 14)
 
 **Chunking Settings:**
-- `MAX_TOKENS_PER_CHUNK` - Max tokens per translation chunk (default: 2000)
-- `MAX_PARAGRAPHS_PER_CHUNK` - Max paragraphs per chunk (default: 10)
+- `MAX_TOKENS_PER_CHUNK` - Max tokens per translation chunk (default: 1500)
+- `MAX_PARAGRAPHS_PER_CHUNK` - Max paragraphs per chunk (default: 5)
 - `MAX_REVIEW_ITERATIONS` - Max review iterations (default: 2)
 
 ## Key Design Decisions
@@ -176,8 +184,10 @@ All settings are loaded from `.env` file using python-dotenv:
 - This ensures 100% accuracy for Bible quotations (not relying on GPT's memory)
 
 ### Chunking Approach
-- Translate paragraph-by-paragraph or in small groups
+- Translate in small groups (max 5 paragraphs or ~1500 tokens per chunk)
+- Use both paragraph count and token estimation to prevent output truncation
 - Use clear delimiters (e.g., `[P1]`, `[P2]`) to maintain alignment
+- Automatically detect and retry any missing translations individually
 - Validate output has same paragraph count as input
 
 ## Files to Create
