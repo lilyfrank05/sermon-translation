@@ -4,12 +4,26 @@ import sys
 from pathlib import Path
 
 import click
+from loguru import logger
 
 from .bible_fetcher import BibleFetcher
-from .config import DEFAULT_BIBLE_VERSION, DEFAULT_MODEL, OPENROUTER_API_KEY
+from .config import DEFAULT_BIBLE_VERSION, DEFAULT_MODEL, DEFAULT_REVIEW_MODEL, LOG_FILE, OPENROUTER_API_KEY
 from .docx_handler import get_plain_text, parse_translated_text, read_docx, write_docx
 from .reviewer import Reviewer, format_review_report
 from .translator import Translator
+
+
+def _setup_logging():
+    logger.remove()  # Remove default stderr sink
+    log_path = Path(LOG_FILE)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    logger.add(
+        log_path,
+        rotation="100 MB",
+        retention="30 days",
+        level="DEBUG",
+        format="{time:YYYY-MM-DD HH:mm:ss} | {level:<8} | {message}",
+    )
 
 
 @click.command()
@@ -38,7 +52,12 @@ from .translator import Translator
 @click.option(
     "--model",
     default=DEFAULT_MODEL,
-    help=f"Model to use (default: {DEFAULT_MODEL})",
+    help=f"Model to use for translation (default: {DEFAULT_MODEL})",
+)
+@click.option(
+    "--review-model",
+    default=None,
+    help=f"Model to use for review (default: same as --model or {DEFAULT_REVIEW_MODEL})",
 )
 def main(
     input_file: Path,
@@ -47,21 +66,24 @@ def main(
     skip_review: bool,
     api_key: str | None,
     model: str,
+    review_model: str | None,
 ):
     """
     Translate a sermon notes DOCX file from English to Mandarin Chinese.
 
     INPUT_FILE: Path to the input DOCX file (English)
     """
+    _setup_logging()
+
     # Validate API key
     effective_api_key = api_key or OPENROUTER_API_KEY
     if not effective_api_key:
-        click.echo("Error: OpenRouter API key required. Set OPENROUTER_API_KEY or use --api-key", err=True)
+        logger.error("OpenRouter API key required. Set OPENROUTER_API_KEY or use --api-key")
         sys.exit(1)
 
     # Validate input file
     if not input_file.suffix.lower() == ".docx":
-        click.echo(f"Error: Input file must be a .docx file, got: {input_file.suffix}", err=True)
+        logger.error(f"Input file must be a .docx file, got: {input_file.suffix}")
         sys.exit(1)
 
     # Generate output filename if not provided
@@ -74,41 +96,41 @@ def main(
     for docx_file in input_file.parent.glob("*.docx"):
         if docx_file.resolve() != input_file.resolve():
             docx_file.unlink()
-            click.echo(f"Removed: {docx_file}")
+            logger.info(f"Removed: {docx_file}")
 
-    click.echo(f"Reading: {input_file}")
-    click.echo(f"Output will be: {output_file}")
+    logger.info(f"Reading: {input_file}")
+    logger.info(f"Output will be: {output_file}")
 
     # Step 1: Read the DOCX file
     try:
         paragraphs = read_docx(input_file)
     except Exception as e:
-        click.echo(f"Error reading DOCX file: {e}", err=True)
+        logger.error(f"Error reading DOCX file: {e}")
         sys.exit(1)
 
-    click.echo(f"Found {len(paragraphs)} paragraphs")
+    logger.info(f"Found {len(paragraphs)} paragraphs")
 
     # Step 2: Detect and fetch Bible verses
-    click.echo("Detecting Bible verse references...")
+    logger.info("Detecting Bible verse references...")
     bible_fetcher = BibleFetcher(version=bible_version)
     full_text = get_plain_text(paragraphs)
     verses = bible_fetcher.fetch_all(full_text)
 
     if verses:
-        click.echo(f"Found {len(verses)} Bible verse reference(s)")
+        logger.info(f"Found {len(verses)} Bible verse reference(s)")
         for ref in verses:
-            click.echo(f"  - {ref}")
+            logger.info(f"  - {ref}")
     else:
-        click.echo("No Bible verse references detected")
+        logger.info("No Bible verse references detected")
 
     verse_table = bible_fetcher.format_verse_table(verses)
 
     # Step 3: Translate
-    click.echo(f"Translating with {model}...")
+    logger.info(f"Translating with {model}...")
     translator = Translator(api_key=effective_api_key, model=model)
 
     def translation_progress(current: int, total: int):
-        click.echo(f"  Translating chunk {current}/{total}")
+        logger.info(f"  Translating chunk {current}/{total}")
 
     translated_texts = translator.translate_paragraphs(
         paragraphs,
@@ -123,11 +145,12 @@ def main(
 
     # Step 4: Review (unless skipped)
     if not skip_review:
-        click.echo(f"Reviewing translation with {model}...")
-        reviewer = Reviewer(api_key=effective_api_key, model=model)
+        effective_review_model = review_model or DEFAULT_REVIEW_MODEL
+        logger.info(f"Reviewing translation with {effective_review_model}...")
+        reviewer = Reviewer(api_key=effective_api_key, model=effective_review_model)
 
         def review_progress(current: int, total: int):
-            click.echo(f"  Review iteration {current}/{total}")
+            logger.info(f"  Review iteration {current}/{total}")
 
         final_translation, issues = reviewer.review_translation(
             original_text=full_text,
@@ -137,23 +160,23 @@ def main(
         )
 
         if issues:
-            click.echo(format_review_report(issues))
+            logger.info(format_review_report(issues))
             # Parse the corrected translation
             translated_texts = parse_translated_text(final_translation, len(paragraphs))
         else:
-            click.echo("Translation approved - no issues found")
+            logger.info("Translation approved - no issues found")
     else:
-        click.echo("Skipping review (--skip-review)")
+        logger.info("Skipping review (--skip-review)")
 
     # Step 5: Write output DOCX
-    click.echo(f"Writing: {output_file}")
+    logger.info(f"Writing: {output_file}")
     try:
         write_docx(paragraphs, output_file, translated_texts)
     except Exception as e:
-        click.echo(f"Error writing DOCX file: {e}", err=True)
+        logger.error(f"Error writing DOCX file: {e}")
         sys.exit(1)
 
-    click.echo("Done!")
+    logger.info("Done!")
 
 
 if __name__ == "__main__":
