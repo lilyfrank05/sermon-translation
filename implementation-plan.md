@@ -10,6 +10,7 @@ A Python CLI tool to translate Christian sermon notes from English to Mandarin C
 - **httpx** for fetching Bible verses from BibleGateway
 - **python-dotenv** for loading configuration from `.env` file
 - **Click** for CLI interface
+- **loguru** for file-based logging with rotation
 
 ## Project Structure
 ```
@@ -135,16 +136,16 @@ If the translation is good, respond with "APPROVED".
 
 ### Step 6: Main CLI (`main.py`)
 ```bash
-uv run sermon-translate input.docx output.docx [--bible-version CCB] [--skip-review]
+uv run sermon-translate input.docx [--output output.docx] [--bible-version CCB] [--skip-review] [--model MODEL] [--review-model MODEL]
 ```
 - Validate input file exists
 - **Clean up existing .docx files** (removes all .docx files except the input file before processing)
 - Read DOCX → structured paragraphs
 - Detect and fetch Bible verses from BibleGateway
 - Translate in chunks via OpenAI (with verse table)
-- Auto-review translation and apply corrections
+- Auto-review translation using a configurable (optionally different) model
 - Write translated content to output DOCX (**empty paragraphs are filtered out**)
-- Report progress to user
+- All progress and errors written to log file (no console output)
 
 ### Step 7: Configuration (`config.py`)
 All settings are loaded from `.env` file using python-dotenv:
@@ -152,7 +153,8 @@ All settings are loaded from `.env` file using python-dotenv:
 **OpenRouter Settings:**
 - `OPENROUTER_API_KEY` - API key for OpenRouter
 - `OPENROUTER_BASE_URL` - API endpoint (default: https://openrouter.ai/api/v1)
-- `DEFAULT_MODEL` - Model to use (default: openai/gpt-4o)
+- `DEFAULT_MODEL` - Model to use for translation (default: openai/gpt-4o)
+- `DEFAULT_REVIEW_MODEL` - Model to use for review (default: same as `DEFAULT_MODEL`)
 - `TRANSLATION_TEMPERATURE` - Temperature for translation (default: 0.3)
 - `REVIEW_TEMPERATURE` - Temperature for review (default: 0.2)
 
@@ -169,6 +171,9 @@ All settings are loaded from `.env` file using python-dotenv:
 - `MAX_TOKENS_PER_CHUNK` - Max tokens per translation chunk (default: 1500)
 - `MAX_PARAGRAPHS_PER_CHUNK` - Max paragraphs per chunk (default: 5)
 - `MAX_REVIEW_ITERATIONS` - Max review iterations (default: 2)
+
+**Logging Settings:**
+- `LOG_FILE` - Path to log file (default: `logs/sermon-translate.log`)
 
 ## Key Design Decisions
 

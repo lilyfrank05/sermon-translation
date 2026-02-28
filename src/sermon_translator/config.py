@@ -40,6 +40,7 @@ def _get_int(key: str, default: int) -> int:
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 OPENROUTER_BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 DEFAULT_MODEL = os.environ.get("DEFAULT_MODEL", "openai/gpt-4o")
+DEFAULT_REVIEW_MODEL = os.environ.get("DEFAULT_REVIEW_MODEL", DEFAULT_MODEL)
 TRANSLATION_TEMPERATURE = _get_float("TRANSLATION_TEMPERATURE", 0.3)
 REVIEW_TEMPERATURE = _get_float("REVIEW_TEMPERATURE", 0.2)
 
@@ -55,6 +56,9 @@ FONT_SIZE_PT = _get_int("FONT_SIZE_PT", 14)
 # Translation chunking
 MAX_TOKENS_PER_CHUNK = _get_int("MAX_TOKENS_PER_CHUNK", 1500)
 MAX_PARAGRAPHS_PER_CHUNK = _get_int("MAX_PARAGRAPHS_PER_CHUNK", 5)
+
+# Logging settings
+LOG_FILE = os.environ.get("LOG_FILE", "logs/sermon-translate.log")
 
 # Review settings
 MAX_REVIEW_ITERATIONS = _get_int("MAX_REVIEW_ITERATIONS", 2)
