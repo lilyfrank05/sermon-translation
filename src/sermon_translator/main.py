@@ -24,6 +24,7 @@ def _setup_logging():
         level="DEBUG",
         format="{time:YYYY-MM-DD HH:mm:ss} | {level:<8} | {message}",
     )
+    logger.add(sys.stderr, level="ERROR", format="{level}: {message}")
 
 
 @click.command()
