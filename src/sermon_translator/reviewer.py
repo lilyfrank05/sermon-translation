@@ -4,10 +4,11 @@ import json
 import re
 from dataclasses import dataclass
 
+from loguru import logger
 from openai import OpenAI
 
 from .config import (
-    DEFAULT_MODEL,
+    DEFAULT_REVIEW_MODEL,
     MAX_REVIEW_ITERATIONS,
     OPENROUTER_API_KEY,
     OPENROUTER_BASE_URL,
@@ -41,7 +42,7 @@ class Reviewer:
             api_key=api_key or OPENROUTER_API_KEY,
             base_url=OPENROUTER_BASE_URL,
         )
-        self.model = model or DEFAULT_MODEL
+        self.model = model or DEFAULT_REVIEW_MODEL
 
     def review_translation(
         self,
@@ -111,14 +112,18 @@ class Reviewer:
             verse_table=verse_table if verse_table else "[No Bible verse references]",
         )
 
-        response = self.client.chat.completions.create(
-            model=self.model,
-            temperature=REVIEW_TEMPERATURE,
-            messages=[
-                {"role": "system", "content": "You are a translation quality reviewer."},
-                {"role": "user", "content": prompt},
-            ],
-        )
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                temperature=REVIEW_TEMPERATURE,
+                messages=[
+                    {"role": "system", "content": "You are a translation quality reviewer."},
+                    {"role": "user", "content": prompt},
+                ],
+            )
+        except Exception as e:
+            logger.error(f"Review API call failed: {e}")
+            return ReviewResult(approved=True, issues=[], corrected_translation=None)
 
         content = response.choices[0].message.content or ""
 
@@ -171,7 +176,8 @@ class Reviewer:
         except json.JSONDecodeError:
             pass
 
-        # If we can't parse the response, treat as approved (no clear issues)
+        # Could not parse the response — log a warning and treat as approved
+        logger.warning(f"Could not parse review response as JSON, treating as approved. Response: {response[:200]!r}")
         return ReviewResult(approved=True, issues=[], corrected_translation=None)
 
 

@@ -1,5 +1,6 @@
 """DOCX file reading and writing with formatting preservation."""
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -64,7 +65,7 @@ def read_docx(file_path: str | Path) -> list[Paragraph]:
 
 def _set_run_fonts(run) -> None:
     """
-    Set fonts for a run: Calibri for Latin, Microsoft YaHei for Chinese.
+    Set fonts for a run using configured LATIN_FONT and EAST_ASIAN_FONT.
 
     Args:
         run: A python-docx Run object
@@ -209,8 +210,6 @@ def parse_translated_text(translated: str, num_paragraphs: int) -> list[str]:
     Returns:
         List of translated text for each paragraph
     """
-    import re
-
     # Extract text for each paragraph marker
     result = [""] * num_paragraphs
 

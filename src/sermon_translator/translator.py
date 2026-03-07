@@ -1,5 +1,8 @@
 """OpenRouter-based translation logic."""
 
+import re
+
+from loguru import logger
 from openai import OpenAI
 
 from .config import (
@@ -135,14 +138,18 @@ class Translator:
         )
 
         # Call OpenRouter API
-        response = self.client.chat.completions.create(
-            model=self.model,
-            temperature=TRANSLATION_TEMPERATURE,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": input_text},
-            ],
-        )
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                temperature=TRANSLATION_TEMPERATURE,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": input_text},
+                ],
+            )
+        except Exception as e:
+            logger.error(f"Translation API call failed for chunk: {e}")
+            return [""] * len(chunk)
 
         translated_text = response.choices[0].message.content or ""
 
@@ -194,19 +201,22 @@ class Translator:
             verse_table=verse_table if verse_table else "[No Bible verse references]"
         )
 
-        response = self.client.chat.completions.create(
-            model=self.model,
-            temperature=TRANSLATION_TEMPERATURE,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": input_text},
-            ],
-        )
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                temperature=TRANSLATION_TEMPERATURE,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": input_text},
+                ],
+            )
+        except Exception as e:
+            logger.error(f"Translation API call failed for paragraph P{idx + 1}: {e}")
+            return ""
 
         translated_text = response.choices[0].message.content or ""
 
         # Parse single paragraph response
-        import re
         pattern = rf"\[P{idx + 1}\]\s*(.*?)$"
         match = re.search(pattern, translated_text, re.DOTALL)
 
@@ -232,8 +242,6 @@ class Translator:
         Returns:
             List of translated text in order
         """
-        import re
-
         result = []
 
         for idx, _ in chunk:

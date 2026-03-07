@@ -99,6 +99,8 @@ def main(
             docx_file.unlink()
             logger.info(f"Removed: {docx_file}")
 
+    click.echo(f"Reading: {input_file}", err=True)
+    click.echo(f"Output will be: {output_file}", err=True)
     logger.info(f"Reading: {input_file}")
     logger.info(f"Output will be: {output_file}")
 
@@ -127,10 +129,12 @@ def main(
     verse_table = bible_fetcher.format_verse_table(verses)
 
     # Step 3: Translate
+    click.echo(f"Translating with {model}...", err=True)
     logger.info(f"Translating with {model}...")
     translator = Translator(api_key=effective_api_key, model=model)
 
     def translation_progress(current: int, total: int):
+        click.echo(f"  Translating chunk {current}/{total}...", err=True)
         logger.info(f"  Translating chunk {current}/{total}")
 
     translated_texts = translator.translate_paragraphs(
@@ -147,10 +151,12 @@ def main(
     # Step 4: Review (unless skipped)
     if not skip_review:
         effective_review_model = review_model or DEFAULT_REVIEW_MODEL
+        click.echo(f"Reviewing translation with {effective_review_model}...", err=True)
         logger.info(f"Reviewing translation with {effective_review_model}...")
         reviewer = Reviewer(api_key=effective_api_key, model=effective_review_model)
 
         def review_progress(current: int, total: int):
+            click.echo(f"  Review iteration {current}/{total}...", err=True)
             logger.info(f"  Review iteration {current}/{total}")
 
         final_translation, issues = reviewer.review_translation(
@@ -170,6 +176,7 @@ def main(
         logger.info("Skipping review (--skip-review)")
 
     # Step 5: Write output DOCX
+    click.echo(f"Writing: {output_file}", err=True)
     logger.info(f"Writing: {output_file}")
     try:
         write_docx(paragraphs, output_file, translated_texts)
@@ -177,6 +184,7 @@ def main(
         logger.error(f"Error writing DOCX file: {e}")
         sys.exit(1)
 
+    click.echo("Done!", err=True)
     logger.info("Done!")
 
 
