@@ -4,6 +4,7 @@ import json
 import re
 from dataclasses import dataclass
 
+import openai
 from loguru import logger
 from openai import OpenAI
 
@@ -12,6 +13,7 @@ from .config import (
     MAX_REVIEW_ITERATIONS,
     OPENROUTER_API_KEY,
     OPENROUTER_BASE_URL,
+    REQUEST_TIMEOUT,
     REVIEW_SYSTEM_PROMPT,
     REVIEW_TEMPERATURE,
 )
@@ -120,9 +122,16 @@ class Reviewer:
                     {"role": "system", "content": "You are a translation quality reviewer."},
                     {"role": "user", "content": prompt},
                 ],
+                timeout=REQUEST_TIMEOUT,
             )
-        except Exception as e:
-            logger.error(f"Review API call failed: {e}")
+        except openai.APITimeoutError:
+            logger.error(f"Review API call timed out after {REQUEST_TIMEOUT}s — skipping review iteration")
+            return ReviewResult(approved=True, issues=[], corrected_translation=None)
+        except openai.APIConnectionError as e:
+            logger.error(f"Review API connection error: {e} — skipping review iteration")
+            return ReviewResult(approved=True, issues=[], corrected_translation=None)
+        except openai.APIStatusError as e:
+            logger.error(f"Review API error {e.status_code}: {e.message} — skipping review iteration")
             return ReviewResult(approved=True, issues=[], corrected_translation=None)
 
         content = response.choices[0].message.content or ""

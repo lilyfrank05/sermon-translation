@@ -84,6 +84,7 @@ All settings can be set in `.env` (copy from `.env.example`):
 | `MAX_TOKENS_PER_CHUNK` | Max tokens per translation chunk | `1500` |
 | `MAX_PARAGRAPHS_PER_CHUNK` | Max paragraphs per chunk | `5` |
 | `MAX_REVIEW_ITERATIONS` | Max review iterations | `2` |
+| `REQUEST_TIMEOUT` | API request timeout in seconds | `120` |
 | `LOG_FILE` | Log file path | `logs/sermon-translate.log` |
 
 ## Logging
