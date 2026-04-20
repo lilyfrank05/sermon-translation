@@ -2,6 +2,7 @@
 
 import re
 
+import openai
 from loguru import logger
 from openai import OpenAI
 
@@ -11,6 +12,7 @@ from .config import (
     MAX_TOKENS_PER_CHUNK,
     OPENROUTER_API_KEY,
     OPENROUTER_BASE_URL,
+    REQUEST_TIMEOUT,
     TRANSLATION_SYSTEM_PROMPT,
     TRANSLATION_TEMPERATURE,
 )
@@ -146,9 +148,16 @@ class Translator:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": input_text},
                 ],
+                timeout=REQUEST_TIMEOUT,
             )
-        except Exception as e:
-            logger.error(f"Translation API call failed for chunk: {e}")
+        except openai.APITimeoutError:
+            logger.error(f"Translation API call timed out after {REQUEST_TIMEOUT}s (chunk retry_count={retry_count})")
+            return [""] * len(chunk)
+        except openai.APIConnectionError as e:
+            logger.error(f"Translation API connection error: {e}")
+            return [""] * len(chunk)
+        except openai.APIStatusError as e:
+            logger.error(f"Translation API error {e.status_code}: {e.message}")
             return [""] * len(chunk)
 
         translated_text = response.choices[0].message.content or ""
@@ -209,9 +218,16 @@ class Translator:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": input_text},
                 ],
+                timeout=REQUEST_TIMEOUT,
             )
-        except Exception as e:
-            logger.error(f"Translation API call failed for paragraph P{idx + 1}: {e}")
+        except openai.APITimeoutError:
+            logger.error(f"Translation API call timed out after {REQUEST_TIMEOUT}s (paragraph {idx + 1})")
+            return ""
+        except openai.APIConnectionError as e:
+            logger.error(f"Translation API connection error (paragraph {idx + 1}): {e}")
+            return ""
+        except openai.APIStatusError as e:
+            logger.error(f"Translation API error {e.status_code} (paragraph {idx + 1}): {e.message}")
             return ""
 
         translated_text = response.choices[0].message.content or ""

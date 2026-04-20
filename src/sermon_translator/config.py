@@ -63,6 +63,9 @@ LOG_FILE = os.environ.get("LOG_FILE", "logs/sermon-translate.log")
 # Review settings
 MAX_REVIEW_ITERATIONS = _get_int("MAX_REVIEW_ITERATIONS", 2)
 
+# API request timeout in seconds (per call)
+REQUEST_TIMEOUT = _get_int("REQUEST_TIMEOUT", 120)
+
 # Translation rules (shared between translation and review)
 TRANSLATION_RULES = """
 1. When "he/He/Him/His" refers to God, translate to 祂
