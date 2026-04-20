@@ -8,7 +8,7 @@ from loguru import logger
 
 from .bible_fetcher import BibleFetcher
 from .config import DEFAULT_BIBLE_VERSION, DEFAULT_MODEL, DEFAULT_REVIEW_MODEL, LOG_FILE, OPENROUTER_API_KEY
-from .docx_handler import get_plain_text, parse_translated_text, read_docx, write_docx
+from .docx_handler import convert_doc_to_docx, get_plain_text, parse_translated_text, read_docx, write_docx
 from .reviewer import Reviewer, format_review_report
 from .translator import Translator
 
@@ -33,7 +33,7 @@ def _setup_logging():
     "--output", "-o",
     type=click.Path(path_type=Path),
     default=None,
-    help="Output file path (default: <input>-Chinese Translation.docx)",
+    help="Output file path (default: <input>-ChineseTranslation.docx)",
 )
 @click.option(
     "--bible-version",
@@ -70,9 +70,9 @@ def main(
     review_model: str | None,
 ):
     """
-    Translate a sermon notes DOCX file from English to Mandarin Chinese.
+    Translate a sermon notes DOCX or DOC file from English to Mandarin Chinese.
 
-    INPUT_FILE: Path to the input DOCX file (English)
+    INPUT_FILE: Path to the input DOCX or DOC file (English)
     """
     _setup_logging()
 
@@ -82,9 +82,10 @@ def main(
         logger.error("OpenRouter API key required. Set OPENROUTER_API_KEY or use --api-key")
         sys.exit(1)
 
-    # Validate input file
-    if not input_file.suffix.lower() == ".docx":
-        logger.error(f"Input file must be a .docx file, got: {input_file.suffix}")
+    # Validate input file extension
+    suffix = input_file.suffix.lower()
+    if suffix not in (".docx", ".doc"):
+        logger.error(f"Input file must be a .docx or .doc file, got: {input_file.suffix}")
         sys.exit(1)
 
     # Generate output filename if not provided
@@ -93,23 +94,35 @@ def main(
     else:
         output_file = output
 
-    # Remove all .docx files except the input file
-    for docx_file in input_file.parent.glob("*.docx"):
-        if docx_file.resolve() != input_file.resolve():
-            docx_file.unlink()
-            logger.info(f"Removed: {docx_file}")
+    # Remove all .docx files except the input file (only when input is .docx)
+    if suffix == ".docx":
+        for docx_file in input_file.parent.glob("*.docx"):
+            if docx_file.resolve() != input_file.resolve():
+                docx_file.unlink()
+                logger.info(f"Removed: {docx_file}")
 
     click.echo(f"Reading: {input_file}", err=True)
     click.echo(f"Output will be: {output_file}", err=True)
     logger.info(f"Reading: {input_file}")
     logger.info(f"Output will be: {output_file}")
 
-    # Step 1: Read the DOCX file
+    # Step 1: Read the input file (converting .doc → .docx via LibreOffice if needed)
+    _tmp_docx: Path | None = None
     try:
-        paragraphs = read_docx(input_file)
+        if suffix == ".doc":
+            click.echo("Converting .doc to .docx via LibreOffice...", err=True)
+            logger.info("Converting .doc to .docx via LibreOffice...")
+            _tmp_docx = convert_doc_to_docx(input_file)
+            paragraphs = read_docx(_tmp_docx)
+        else:
+            paragraphs = read_docx(input_file)
     except Exception as e:
-        logger.error(f"Error reading DOCX file: {e}")
+        logger.error(f"Error reading input file: {e}")
         sys.exit(1)
+    finally:
+        if _tmp_docx and _tmp_docx.exists():
+            _tmp_docx.unlink(missing_ok=True)
+            _tmp_docx.parent.rmdir()
 
     logger.info(f"Found {len(paragraphs)} paragraphs")
 

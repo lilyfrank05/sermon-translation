@@ -1,6 +1,8 @@
 """DOCX file reading and writing with formatting preservation."""
 
 import re
+import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -32,6 +34,34 @@ class Paragraph:
     def is_empty(self) -> bool:
         """Check if the paragraph has no text content."""
         return not self.text.strip()
+
+
+def convert_doc_to_docx(doc_path: Path) -> Path:
+    """
+    Convert a .doc file to .docx using LibreOffice, returning the output path.
+
+    The output is written to a temporary directory; callers should delete it
+    when done.  Raises RuntimeError if LibreOffice is not available or fails.
+    """
+    tmp_dir = Path(tempfile.mkdtemp())
+    try:
+        result = subprocess.run(
+            ["libreoffice", "--headless", "--convert-to", "docx", "--outdir", str(tmp_dir), str(doc_path)],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except FileNotFoundError:
+        raise RuntimeError(
+            "LibreOffice is required to process .doc files but was not found. "
+            "Install it with: sudo apt install libreoffice"
+        )
+    if result.returncode != 0:
+        raise RuntimeError(f"LibreOffice conversion failed: {result.stderr}")
+    converted = tmp_dir / (doc_path.stem + ".docx")
+    if not converted.exists():
+        raise RuntimeError(f"LibreOffice did not produce expected output: {converted}")
+    return converted
 
 
 def read_docx(file_path: str | Path) -> list[Paragraph]:
