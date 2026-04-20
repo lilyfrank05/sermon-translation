@@ -4,7 +4,7 @@ A CLI tool to translate Christian sermon notes from English to Mandarin Chinese 
 
 ## Features
 
-- Translates DOCX sermon notes from English to Mandarin Chinese
+- Translates DOCX and DOC sermon notes from English to Mandarin Chinese
 - Fetches exact Bible verse translations from BibleGateway (CCB version by default)
 - Preserves bold/italic formatting in the output document
 - Auto-reviews the translation and applies corrections
@@ -16,6 +16,7 @@ A CLI tool to translate Christian sermon notes from English to Mandarin Chinese 
 - Python 3.10+
 - [uv](https://github.com/astral-sh/uv)
 - An [OpenRouter](https://openrouter.ai) API key
+- [LibreOffice](https://www.libreoffice.org) (only required for `.doc` input files)
 
 ## Setup
 
@@ -28,10 +29,12 @@ uv sync
 ## Usage
 
 ```bash
-uv run sermon-translate input.docx
+uv run sermon-translate input.docx   # or input.doc
 ```
 
 The translated file is saved as `<input>-ChineseTranslation.docx` by default.
+
+> **Note:** `.doc` files are converted to `.docx` internally via LibreOffice before processing.
 
 ### Options
 

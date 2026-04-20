@@ -5,6 +5,7 @@ from urllib.parse import quote
 
 import httpx
 from bs4 import BeautifulSoup
+from loguru import logger
 
 from .config import BIBLEGATEWAY_URL, DEFAULT_BIBLE_VERSION
 
@@ -76,7 +77,7 @@ class BibleFetcher:
             response = httpx.get(url, timeout=30.0, follow_redirects=True)
             response.raise_for_status()
         except httpx.HTTPError as e:
-            print(f"Warning: Failed to fetch {reference}: {e}")
+            logger.warning(f"Failed to fetch {reference}: {e}")
             return None
 
         # Parse the HTML to extract verse text
@@ -85,7 +86,7 @@ class BibleFetcher:
         # Find the passage text container
         passage_div = soup.find("div", class_="passage-text")
         if not passage_div:
-            print(f"Warning: Could not find passage text for {reference}")
+            logger.warning(f"Could not find passage text for {reference}")
             return None
 
         # Extract text from verse spans, excluding verse numbers
@@ -108,7 +109,7 @@ class BibleFetcher:
                 verses.append(verse_text)
 
         if not verses:
-            print(f"Warning: No verse text found for {reference}")
+            logger.warning(f"No verse text found for {reference}")
             return None
 
         result = " ".join(verses)
