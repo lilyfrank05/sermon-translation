@@ -145,68 +145,12 @@ def write_docx(
 
         para = doc.add_paragraph()
 
-        if not orig_para.runs:
-            # Empty paragraph - just add the translated text (if any)
-            if translated_text.strip():
-                run = para.add_run(translated_text)
-                _set_run_fonts(run)
-            continue
-
-        # Try to map translated text to original runs by proportion
-        # This is a heuristic since translation changes text length
-        if len(orig_para.runs) == 1:
-            # Simple case: one run, apply its formatting to all translated text
+        if translated_text.strip():
             run = para.add_run(translated_text)
-            run.bold = orig_para.runs[0].bold
-            run.italic = orig_para.runs[0].italic
             _set_run_fonts(run)
-        else:
-            # Multiple runs: try to preserve formatting proportionally
-            _apply_proportional_formatting(para, orig_para.runs, translated_text)
 
     doc.save(output_path)
 
-
-def _apply_proportional_formatting(
-    para,
-    original_runs: list[Run],
-    translated_text: str,
-) -> None:
-    """
-    Apply formatting from original runs to translated text proportionally.
-
-    This attempts to maintain bold/italic sections in roughly the same
-    proportional positions as the original.
-    """
-    if not translated_text:
-        return
-
-    original_length = sum(len(r.text) for r in original_runs)
-    if original_length == 0:
-        run = para.add_run(translated_text)
-        _set_run_fonts(run)
-        return
-
-    # Calculate proportional positions for each run
-    translated_length = len(translated_text)
-    current_pos = 0
-
-    for i, orig_run in enumerate(original_runs):
-        run_proportion = len(orig_run.text) / original_length
-
-        if i == len(original_runs) - 1:
-            # Last run gets remaining text
-            run_text = translated_text[current_pos:]
-        else:
-            end_pos = current_pos + int(run_proportion * translated_length)
-            run_text = translated_text[current_pos:end_pos]
-            current_pos = end_pos
-
-        if run_text:
-            run = para.add_run(run_text)
-            run.bold = orig_run.bold
-            run.italic = orig_run.italic
-            _set_run_fonts(run)
 
 
 def get_plain_text(paragraphs: list[Paragraph]) -> str:
