@@ -35,6 +35,8 @@ MANIFEST
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
+.sermon-translate-inputs
+.sermon-translate-inputs.*
 
 # Unit test / coverage reports
 htmlcov/
